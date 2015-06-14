@@ -1,55 +1,34 @@
-
+import scala.util.Random
 
 /**
- * Created by Rudie on 26-5-2015.
+ * Created by Rudie on 13-6-2015.
  */
-case class GeneticAlgorithm(crossoverRate: Double, mutationRate: Double, elitism: Boolean, populationSize: Int, numGenerations: Int) {
+trait GeneticAlgorithm[T] {
 
-  def Run[T](createIndividual: () => T,
-              computeFitness: T => Double,
-              selectTwoParents: Seq[(T, Double)] => () => (T, T),
-              crossover: ((T, T), Double) => (T, T),
-              mutation: (T, Double) => T) = {
+  def createIndividual(): T
 
-    //get fitnesses
-    def getFitnesses(population: Seq[T]) = {
-      population.map(individual => (individual, computeFitness(individual)))
+  def computeFitness(individual: T): Double
+
+  def selectTwoParents(population: Seq[(T, Double)]): () => (T, T) = {
+    val totalFitness = population.map(_._2).sum
+
+    def nextRandom(): Double = {
+      Random.nextDouble() * totalFitness
     }
 
-    //get elitism
-    def getElitism(populationWithFitnesses: Seq[(T, Double)]): Option[T] = {
-      if(elitism) Some(populationWithFitnesses.sortWith(_._2 > _._2).head._1)
-      else None
+    def select(sum: Double, random: Double, population: Seq[(T, Double)]): T = {
+      if ((sum + population.head._2) >= random) population.head._1
+      else select(sum + population.head._2, random, population.tail)
     }
 
-    //get offspring with change of crossover and mutation
-    def getOffspring(parents: (T, T)) : Seq[T]= {
-      val offspring = crossover(parents, crossoverRate)
-      Seq(mutation(offspring._1, mutationRate), mutation(offspring._2, mutationRate))
-    }
-
-    def computeGeneration(generation: Int, population: Seq[T]): Seq[T] = {
-      if(generation <= 0) population
-      else {
-        //calcualte fitnesses
-        val populationWithFitnesses = getFitnesses(population)
-
-        //get the offspring
-        val getParents = selectTwoParents(populationWithFitnesses)
-        val offsprings = (0 until populationSize)
-          .map(_ => getParents())
-          .flatMap(getOffspring)
-
-        //apply elitism
-        val nextGeneration = getElitism(populationWithFitnesses) match {
-          case Some(individual) => individual +: offsprings
-          case None => offsprings
-        }
-
-        computeGeneration(generation - 1, nextGeneration.take(populationSize))
-      }
-    }
-
-    computeGeneration(numGenerations, (0 until populationSize).map(_ => createIndividual()))
+    () => (select(0, nextRandom(), population), select(0, nextRandom(), population))
   }
+
+  def crossover(parents: (T, T), chance: Double): (T, T)
+
+  def mutation(individual: T, chance: Double): T
+
+  def run(crossoverRate: Double, mutationRate: Double, elitism: Boolean, populationSize: Int, numGenerations: Int) =
+    GeneticAlgorithmSolver(crossoverRate, mutationRate, elitism, populationSize, numGenerations)
+      .run(createIndividual, computeFitness, selectTwoParents, crossover, mutation)
 }
