@@ -5,30 +5,30 @@
  */
 class GeneticAlgorithmSolver(crossoverRate: Double, mutationRate: Double, elitism: Boolean, populationSize: Int, numGenerations: Int) {
 
-  def run[T](createIndividual: () => T,
-              computeFitness: T => Double,
-              selectTwoParents: Seq[(T, Double)] => () => (T, T),
-              crossover: ((T, T), Double) => (T, T),
-              mutation: (T, Double) => T) = {
+  def run[Ind](createIndividual: () => Ind,
+               computeFitness: Ind => Double,
+               selectTwoParents: Seq[(Ind, Double)] => () => (Ind, Ind),
+               crossover: ((Ind, Ind), Double) => (Ind, Ind),
+               mutation: (Ind, Double) => Ind) = {
 
     //get fitnesses
-    def getFitnesses(population: Seq[T]) = {
+    def getFitnesses(population: Seq[Ind]) = {
       population.map(individual => (individual, computeFitness(individual)))
     }
 
     //get elitism
-    def getElitism(populationWithFitnesses: Seq[(T, Double)]): Option[T] = {
+    def getElitism(populationWithFitnesses: Seq[(Ind, Double)]): Option[Ind] = {
       if(elitism) Some(populationWithFitnesses.sortWith(_._2 > _._2).head._1)
       else None
     }
 
     //get offspring with change of crossover and mutation
-    def getOffspring(parents: (T, T)) : Seq[T]= {
+    def getOffspring(parents: (Ind, Ind)): Seq[Ind] = {
       val offspring = crossover(parents, crossoverRate)
       Seq(mutation(offspring._1, mutationRate), mutation(offspring._2, mutationRate))
     }
 
-    def computeGeneration(generation: Int, population: Seq[T]): Seq[T] = {
+    def computeGeneration(generation: Int, population: Seq[Ind]): Seq[Ind] = {
       if(generation <= 0) population
       else {
         //calcualte fitnesses
@@ -36,9 +36,7 @@ class GeneticAlgorithmSolver(crossoverRate: Double, mutationRate: Double, elitis
 
         //get the offspring
         val getParents = selectTwoParents(populationWithFitnesses)
-        val offsprings = (0 until populationSize)
-          .map(_ => getParents())
-          .flatMap(getOffspring)
+        val offsprings = List.fill(populationSize / 2)(getParents()).flatMap(getOffspring)
 
         //apply elitism
         val nextGeneration = getElitism(populationWithFitnesses) match {
@@ -50,7 +48,7 @@ class GeneticAlgorithmSolver(crossoverRate: Double, mutationRate: Double, elitis
       }
     }
 
-    computeGeneration(numGenerations, (0 until populationSize).map(_ => createIndividual()))
+    computeGeneration(numGenerations, List.fill(populationSize)(createIndividual()))
   }
 }
 
